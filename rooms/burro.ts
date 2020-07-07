@@ -56,11 +56,12 @@ export class State extends Schema {
   @type({ map: Player })
   players = new MapSchema<Player>();
 
+  @type("boolean")
+  enableBurro = false;
+
   numPlayers: number = 2;
 
   cards: string[];
-
-  enableBurro = false;
 
   constructor(numPlayers: number) {
     super();
@@ -97,6 +98,7 @@ export class State extends Schema {
       this.players[id].playerIdPrev = prev;
       this.players[id].playerIdNext = next;
       this.players[id].discardFrom = discardFrom;
+      this.players[id].discardto = '';
       this.players[id].dateBurro = null;
 
       index++;
@@ -107,11 +109,12 @@ export class State extends Schema {
 
   createPlayer(id: string): any {
     this.players[id] = new Player(id);
-    console.log("this.players._indexes.size", this.players._indexes.size);
-    console.log("this.numPlayers", this.numPlayers);
+    //console.log("this.players._indexes.size", this.players._indexes.size);
+    //console.log("this.numPlayers", this.numPlayers);
     if (this.players._indexes.size === this.numPlayers - 1) {
+      //console.log('this.players', this.players);
       // Iniciar Partida
-      this.init();
+      setTimeout(() => this.init(), 100);
       return { status: "start" };
     }
     return null;
@@ -122,13 +125,15 @@ export class State extends Schema {
   }
 
   playerDiscard(id: string, index: number) {
+    //console.log('playerDiscard', id, index);
     const cards: ArraySchema<string> = this.players[id].cards;
     const discard = cards[index];
     cards.splice(index, 1);
     this.players[id].cards = cards;
-    this.players[id].discardTo = discard;
-    if (this.players[id].next) {
-      this.players[this.players[id].next].discardFrom = discard;
+    //console.log('this.players[id].playerIdNext', this.players[id].playerIdNext);
+    if (this.players[id].playerIdNext) {
+      this.players[id].discardTo = discard;
+      this.players[this.players[id].playerIdNext].discardFrom = discard;
     } else {
       this.cards.unshift(discard);
     }
@@ -150,37 +155,36 @@ export class State extends Schema {
   playerBurro(id: string) {
     if ((this.players[id].enableBurro || this.enableBurro) && !this.players[id].dateBurro) {
       this.players[id].dateBurro = new Date();
-      if (!this.enableBurro) {
-        this.enableBurro = true;
-      } else {
-        const loser: any = {};
-        let countNull = 0;
-        for (const pId in this.players) {
-          const data = this.players[pId];
-          if (data.dateBurro) {
-            if (!loser.dateBurro || loser.dateBurro < data.dateBurro) {
-              loser.dateBurro = data.dateBurro;
-              loser.player = data;
-            }
-          } else {
-            countNull++;
-            loser.playerNull = data;
+      const loser: any = {};
+      let countNull = 0;
+      for (const pId in this.players) {
+        const data = this.players[pId];
+        if (data.dateBurro) {
+          if (!loser.dateBurro || loser.dateBurro < data.dateBurro) {
+            loser.dateBurro = data.dateBurro;
+            loser.player = data;
           }
-        }
-        if (countNull < 2) {
-          const data = countNull === 0 ? loser.player : loser.playerNull;
-          let burro = data.burro || '';
-          if (burro !== 'BURRO') {
-            const letter = 'BURRO'[burro.length];
-            burro += letter;
-            data.burro = burro;
-            this.init();
-            return { type: "endRound", playerIdLoser: data.playerId, burro: burro, letter: letter };
-          } else {
-            return { type: "end", playerIdLoser: data.playerId };
-          }
+        } else {
+          countNull++;
+          loser.playerNull = data;
         }
       }
+      if (countNull < 2) {
+        const data = countNull === 0 ? loser.player : loser.playerNull;
+        let burro = data.burro || '';
+        if (burro !== 'BURRO') {
+          const letter = 'BURRO'[burro.length];
+          burro += letter;
+          data.burro = burro;
+          this.init();
+          return { type: "endRound", playerIdLoser: data.playerId, burro: burro, letter: letter };
+        } else {
+          return { type: "end", playerIdLoser: data.playerId };
+        }
+      }
+      if (!this.enableBurro) {
+        this.enableBurro = true;
+      } 
     }
     return null;
   }
@@ -193,15 +197,15 @@ export class BurroRoom extends Room<State> {
     this.setState(new State(options.numPlayers));
 
     this.onMessage("discard", (client, message) => {
-      console.log("discard", client, message);
+      console.log("discard", client.sessionId, message);
       this.state.playerDiscard(client.sessionId, message.index);
     });
     this.onMessage("takeNext", (client, message) => {
-      console.log("takeNext", client, message);
+      console.log("takeNext", client.sessionId, message);
       this.state.playerTakeNext(client.sessionId);
     });
     this.onMessage("burro", (client, message) => {
-      console.log("burro", client, message);
+      console.log("burro", client.sessionId, message);
       var result = this.state.playerBurro(client.sessionId);
       if(result?.type == "endRound") {
         this.broadcast('endRound', result);
@@ -219,7 +223,7 @@ export class BurroRoom extends Room<State> {
   }
 
   onJoin(client: Client, options: any) {
-    console.log("onJoin", options);
+    console.log("onJoin", client.sessionId, options);
     const response = this.state.createPlayer(client.sessionId);
     console.log("onJoin response", response);
     if (response?.status === "start") {
@@ -229,7 +233,7 @@ export class BurroRoom extends Room<State> {
   }
 
   onLeave(client: Client, consented: boolean) {
-    console.log("onLeave", client, consented);
+    console.log("onLeave", client.sessionId, consented);
   }
 
   onDispose() {
