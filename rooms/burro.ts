@@ -98,7 +98,7 @@ export class State extends Schema {
       this.players[id].playerIdPrev = prev;
       this.players[id].playerIdNext = next;
       this.players[id].discardFrom = discardFrom;
-      this.players[id].discardto = '';
+      this.players[id].discardTo = '';
       this.players[id].dateBurro = null;
 
       index++;
