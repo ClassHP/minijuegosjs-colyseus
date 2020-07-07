@@ -125,22 +125,24 @@ export class State extends Schema {
   }
 
   playerDiscard(id: string, index: number) {
-    //console.log('playerDiscard', id, index);
-    const cards: ArraySchema<string> = this.players[id].cards;
-    const discard = cards[index];
-    cards.splice(index, 1);
-    this.players[id].cards = cards;
-    //console.log('this.players[id].playerIdNext', this.players[id].playerIdNext);
-    if (this.players[id].playerIdNext) {
-      this.players[id].discardTo = discard;
-      this.players[this.players[id].playerIdNext].discardFrom = discard;
-    } else {
-      this.cards.unshift(discard);
+    if(!this.enableBurro) {
+      //console.log('playerDiscard', id, index);
+      const cards: ArraySchema<string> = this.players[id].cards;
+      const discard = cards[index];
+      cards.splice(index, 1);
+      this.players[id].cards = cards;
+      //console.log('this.players[id].playerIdNext', this.players[id].playerIdNext);
+      if (this.players[id].playerIdNext) {
+        this.players[id].discardTo = discard;
+        this.players[this.players[id].playerIdNext].discardFrom = discard;
+      } else {
+        this.cards.unshift(discard);
+      }
     }
   }
 
   playerTakeNext(id: string) {
-    if (this.players[id].cards.length === 3 && this.players[id].discardFrom) {
+    if (this.players[id].cards.length === 3 && this.players[id].discardFrom && !this.enableBurro) {
       this.players[id].cards.push(this.players[id].discardFrom);
       this.players[id].discardFrom = "";
       if (!this.players[id].playerIdPrev) {
